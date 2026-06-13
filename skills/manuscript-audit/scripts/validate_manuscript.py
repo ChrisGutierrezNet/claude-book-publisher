@@ -85,6 +85,25 @@ class ManuscriptAuditor:
         self.tex_file = self._find_tex_file()
         self.pdf_file = self._find_pdf_file()
 
+    def _filter_source_files(self, files: list[Path]) -> list[Path]:
+        """Exclude files in worktrees, build output, and hidden directories."""
+        excluded = {".worktrees", "_output", "_site", "_book", ".git", "node_modules"}
+        result = []
+        for f in files:
+            parts = f.relative_to(self.project_path).parts
+            if not any(p in excluded or p.startswith(".") for p in parts):
+                result.append(f)
+        return result
+
+    @staticmethod
+    def _strip_yaml_frontmatter(text: str) -> str:
+        """Remove YAML front matter (--- ... ---) from .qmd/.md content."""
+        if text.startswith("---"):
+            end = text.find("---", 3)
+            if end != -1:
+                return text[end + 3:]
+        return text
+
     def _find_quarto_config(self) -> Optional[Path]:
         for name in ["_quarto-kdp.yml", "_quarto.yml"]:
             p = self.project_path / name
@@ -487,7 +506,7 @@ class ManuscriptAuditor:
         cat = "Content"
 
         # Scan all .qmd files for placeholders
-        qmd_files = list(self.project_path.rglob("*.qmd"))
+        qmd_files = self._filter_source_files(list(self.project_path.rglob("*.qmd")))
         placeholder_count = 0
         verify_count = 0
         need_example_count = 0
@@ -711,7 +730,9 @@ class ManuscriptAuditor:
         cat = "Consistency"
 
         # Check for framework name consistency across chapters
-        qmd_files = sorted(self.project_path.rglob("chapters/**/*.qmd"))
+        qmd_files = sorted(self._filter_source_files(
+            list(self.project_path.rglob("chapters/**/*.qmd"))
+        ))
         if not qmd_files:
             self._record(cat, False)
             return
@@ -746,7 +767,7 @@ class ManuscriptAuditor:
         # Check chapter word counts for uniformity
         chapter_words = []
         for f in qmd_files:
-            text = f.read_text()
+            text = self._strip_yaml_frontmatter(f.read_text())
             words = len(text.split())
             chapter_words.append((f.name, words))
 
@@ -781,10 +802,10 @@ class ManuscriptAuditor:
         """Analyze whether page count is reasonable for word count."""
         cat = "Page Count"
 
-        # Count words in all .qmd files
+        # Count words in all .qmd files (excluding worktrees/output)
         total_words = 0
-        for f in self.project_path.rglob("*.qmd"):
-            total_words += len(f.read_text().split())
+        for f in self._filter_source_files(list(self.project_path.rglob("*.qmd"))):
+            total_words += len(self._strip_yaml_frontmatter(f.read_text()).split())
 
         if total_words == 0:
             self._record(cat, False)

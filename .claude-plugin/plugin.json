@@ -1,0 +1,8 @@
+{
+  "name": "book-publisher",
+  "version": "0.1.0",
+  "description": "Professional book publishing QA, formatting validation, and KDP preflight — manuscript audit, typography checks, and cryptographically verified compliance reports",
+  "author": {
+    "name": "Chris Gutierrez"
+  }
+}
